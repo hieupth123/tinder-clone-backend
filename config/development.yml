@@ -1,0 +1,15 @@
+env:
+  mode: debug
+
+server:
+  port: 8081
+  locale: "en"
+  timezone: UTC
+
+database:
+  uri: mongodb+srv://admin:admin123@cluster0.7mqjc.mongodb.net/myFirstDatabase?retryWrites=true&w=majority
+  db_name: tinder
+
+dummy:
+  appId: 623da72da20f9c28603028df
+  Url: https://dummyapi.io/data/v1
