@@ -14,11 +14,11 @@ import (
 	"sync"
 )
 
-
 type UserActionController struct {
 }
 
 func (uCtrl UserActionController) LikeUser(c *gin.Context) {
+	fmt.Println("----------------------")
 	var req request.LikeUserRequest
 	errUri := c.ShouldBindUri(&req)
 	if errUri != nil {
@@ -28,7 +28,7 @@ func (uCtrl UserActionController) LikeUser(c *gin.Context) {
 	}
 	userActionModel := new(models.UserAction)
 	cond := bson.M{
-		"user_uuid": req.GuestUuid,
+		"user_uuid":  req.GuestUuid,
 		"guest_uuid": req.UserUuid,
 	}
 	isGuestLike, err := userActionModel.FindOne(c, cond)
@@ -36,13 +36,14 @@ func (uCtrl UserActionController) LikeUser(c *gin.Context) {
 		fmt.Println(err)
 	}
 	obj := models.UserAction{
-		Uuid: common.GenerateUUID(),
-		UserUuid: req.UserUuid,
+		Uuid:      common.GenerateUUID(),
+		UserUuid:  req.UserUuid,
 		GuestUuid: req.GuestUuid,
-		Type: constant.LIKED,
+		Type:      constant.LIKED,
 		CreatedAt: util.GetNowUTC(),
 		UpdatedAt: util.GetNowUTC(),
 	}
+	util.LogInfo(obj)
 	obj.Insert()
 	if isGuestLike != nil {
 		var wg sync.WaitGroup
@@ -72,17 +73,19 @@ func (uCtrl UserActionController) PassUser(c *gin.Context) {
 	}
 	userActionModel := new(models.UserAction)
 	cond := bson.M{
-		"user_uuid": req.GuestUuid,
-		"guest_uuid": req.UserUuid,
+		"user_uuid":  req.UserUuid,
+		"guest_uuid": req.GuestUuid,
 	}
-	_, err := userActionModel.FindOne(c, cond)
+	user, err := userActionModel.FindOne(c, cond)
+	fmt.Println("err: ", err)
+	fmt.Println("user: ", user)
 	if err != nil {
 		fmt.Println(err)
 		obj := models.UserAction{
-			Uuid: common.GenerateUUID(),
-			UserUuid: req.UserUuid,
+			Uuid:      common.GenerateUUID(),
+			UserUuid:  req.UserUuid,
 			GuestUuid: req.GuestUuid,
-			Type: constant.PASSED,
+			Type:      constant.PASSED,
 			CreatedAt: util.GetNowUTC(),
 			UpdatedAt: util.GetNowUTC(),
 		}
@@ -90,10 +93,10 @@ func (uCtrl UserActionController) PassUser(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, respond.Success(nil, "Liked successfully"))
 }
-func PushMatchesUser (userUuid string, guestUuid string) {
+func PushMatchesUser(userUuid string, guestUuid string) {
 	userModel := new(models.User)
 	condUpdateUser := bson.M{
-		"uuid":        userUuid,
+		"uuid": userUuid,
 	}
 	dataU := make(map[string]interface{})
 	dataU["matches"] = guestUuid
@@ -105,7 +108,7 @@ func PushMatchesUser (userUuid string, guestUuid string) {
 }
 
 func (uCtrl UserActionController) GetUserLiked(c *gin.Context) {
-	var req request.LikeUserRequest
+	var req request.GetUserLikedRequest
 	errUri := c.ShouldBindUri(&req)
 	if errUri != nil {
 		_ = c.Error(errUri)
@@ -113,10 +116,10 @@ func (uCtrl UserActionController) GetUserLiked(c *gin.Context) {
 		return
 	}
 	userActionModel := new(models.UserAction)
-	userModel := new (models.User)
+	userModel := new(models.User)
 	cond := bson.M{
-		"user_uuid": req.GuestUuid,
-		"type": constant.LIKED,
+		"user_uuid": req.Uuid,
+		"type":      constant.LIKED,
 	}
 	userActions, err := userActionModel.Find(c, cond)
 	if err != nil {
@@ -124,17 +127,18 @@ func (uCtrl UserActionController) GetUserLiked(c *gin.Context) {
 		c.JSON(http.StatusUnprocessableEntity, respond.ErrorResponse("Get User Action fail"))
 		return
 	}
-	var userUuids []string
-	for _, userAction := range userActions{
-		userUuids = append(userUuids, userAction.GuestUuid)
+	var guestUserUuids []string
+	for _, userAction := range userActions {
+		guestUserUuids = append(guestUserUuids, userAction.GuestUuid)
 	}
+	fmt.Println("guestUserUuids: ", guestUserUuids)
 	response := []*request.UserLikedResponse{}
-	if len(userUuids) == 0 {
+	if len(guestUserUuids) == 0 {
 		c.JSON(http.StatusOK, respond.Success(response, "Get Liked User Successfully"))
 		return
 	}
 	condUser := bson.M{
-		"uuid": bson.M{"$in": userUuids},
+		"uuid": bson.M{"$in": guestUserUuids},
 	}
 	users, errUser := userModel.Find(c, condUser)
 	if errUser != nil {
@@ -152,5 +156,5 @@ func (uCtrl UserActionController) GetUserLiked(c *gin.Context) {
 			Picture:   item.Picture,
 		})
 	}
-	c.JSON(http.StatusOK, respond.Success(nil, "Liked successfully"))
+	c.JSON(http.StatusOK, respond.Success(response, "Liked successfully"))
 }

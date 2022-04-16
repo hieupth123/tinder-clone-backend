@@ -1,9 +1,10 @@
 package routes
 
 import (
-	"github.com/phamtrunghieu/tinder-clone-backend/controllers"
-	"net/http"
 	"github.com/gin-gonic/gin"
+	"github.com/phamtrunghieu/tinder-clone-backend/controllers"
+	"github.com/phamtrunghieu/tinder-clone-backend/middleware"
+	"net/http"
 )
 
 func RouteInit(engine *gin.Engine) {
@@ -11,15 +12,13 @@ func RouteInit(engine *gin.Engine) {
 	userCtrl := new(controllers.UserController)
 	userActionCtrl := new(controllers.UserActionController)
 
-
 	engine.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "Tinder server")
 	})
 	engine.GET("/health", func(c *gin.Context) {
 		c.String(http.StatusOK, "OK")
 	})
-
-
+	engine.Use(middleware.CORS())
 
 	apiUser := engine.Group("/user")
 	apiUser.GET("", userCtrl.GetList)

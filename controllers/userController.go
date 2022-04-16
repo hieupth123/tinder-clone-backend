@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -33,7 +32,8 @@ type UserDetail struct {
 	Phone       string `json:"phone"`
 }
 type UserId struct {
-	Id string `json:"id"`
+	Id       string `json:"id"`
+	LastName string `json:"lastName"`
 }
 
 type UserController struct {
@@ -47,7 +47,7 @@ func (uCtrl UserController) DumpData(c *gin.Context) {
 		Timeout: 20 * time.Second,
 	}
 
-	url := baseUrl + "/user?limit=100"
+	url := baseUrl + "/user?limit=10"
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Printf("[ERROR] Get store recommendation http.NewRequest %s\n", err)
@@ -80,21 +80,20 @@ func (uCtrl UserController) DumpData(c *gin.Context) {
 		return
 	}
 
+	util.LogInfo("responseData.Data: ", responseData.Data)
+
 	if len(responseData.Data) > 0 {
 		var wg sync.WaitGroup
 		for _, item := range responseData.Data {
 			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				getDummyAndSaveData(c, item.Id, apiKey, baseUrl, client)
-			}()
+			go getDummyAndSaveData(item.Id, apiKey, baseUrl, client, &wg)
 		}
 		wg.Wait()
 	}
 	c.JSON(http.StatusOK, respond.Success(nil, "Successfully"))
 }
 
-func getDummyAndSaveData(c context.Context, id string, apiKey string, baseUrl string, client http.Client) {
+func getDummyAndSaveData(id string, apiKey string, baseUrl string, client http.Client, wg *sync.WaitGroup) {
 	url := baseUrl + "/user/" + id
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -123,6 +122,7 @@ func getDummyAndSaveData(c context.Context, id string, apiKey string, baseUrl st
 		fmt.Printf("[ERROR] json.Unmarshal %s %s\n", err, string(b))
 		return
 	}
+	matches := []string{}
 	user := models.User{
 		Uuid:        common.GenerateUUID(),
 		LastName:    responseData.LastName,
@@ -132,17 +132,18 @@ func getDummyAndSaveData(c context.Context, id string, apiKey string, baseUrl st
 		DateOfBirth: responseData.DateOfBirth,
 		Email:       responseData.Email,
 		Phone:       responseData.Phone,
+		Matches:     matches,
 		CreatedAt:   util.GetNowUTC(),
 		UpdatedAt:   util.GetNowUTC(),
 	}
 	user.Insert()
+	defer wg.Done()
 }
 
 func (uCtrl UserController) GetList(c *gin.Context) {
 	userModel := new(models.User)
 
-	cond := bson.M{
-	}
+	cond := bson.M{}
 
 	users, err := userModel.Find(c, cond)
 
@@ -196,6 +197,7 @@ func (uCtrl UserController) GetDetail(c *gin.Context) {
 		Picture:   user.Picture,
 		Email:     user.Email,
 		Phone:     user.Phone,
+		Matches:   user.Matches,
 	}
 
 	c.JSON(http.StatusOK, respond.Success(response, "Successfully"))
@@ -259,21 +261,24 @@ func (uCtrl UserController) GetUserAvailable(c *gin.Context) {
 	userActions, err := userActionModel.Find(c, condAction)
 	if err != nil {
 		util.LogError(err)
-		c.JSON(http.StatusUnprocessableEntity, respond.ErrorResponse("Can not user action"))
+		c.JSON(http.StatusUnprocessableEntity, respond.ErrorResponse("Can not found user action"))
 		return
 	}
 	for _, userAction := range userActions {
 		exceptUuids = append(exceptUuids, userAction.GuestUuid)
 	}
-
+	exceptUuids = append(exceptUuids, req.Uuid)
+	fmt.Println("exceptUuids: ", exceptUuids)
 	condAvl := bson.M{
 		"uuid": bson.M{"$nin": exceptUuids},
 	}
+	fmt.Println("condAvl: ")
+	util.LogError(condAvl)
 	users, err := userModel.Find(c, condAvl)
 	response := []*request.GetDetailResponse{}
 	if err != nil {
 		util.LogError(err)
-		c.JSON(http.StatusOK, respond.Success(response, "Successfully"))
+		c.JSON(http.StatusUnprocessableEntity, respond.ErrorResponse("Can not get list user available"))
 		return
 	}
 
@@ -285,6 +290,7 @@ func (uCtrl UserController) GetUserAvailable(c *gin.Context) {
 			Gender:    util.ConvertGender(item.Gender),
 			Age:       util.GetAge(item.DateOfBirth),
 			Picture:   item.Picture,
+			Matches:   item.Matches,
 		})
 	}
 

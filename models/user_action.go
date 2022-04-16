@@ -18,7 +18,7 @@ type UserAction struct {
 }
 
 func (u *UserAction) Model() *mongo.Collection {
-	store := database.GetInstance().Collection("user")
+	store := database.GetInstance().Collection("user_action")
 
 	return store
 }

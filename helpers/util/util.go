@@ -54,6 +54,6 @@ func GetAge(dob string) int {
 		return 0
 	}
 	now := time.Now()
-	age := int(now.Sub(dateOfBirth).Hours()/24/365)
+	age := int(now.Sub(dateOfBirth).Hours() / 24 / 365)
 	return age
 }
